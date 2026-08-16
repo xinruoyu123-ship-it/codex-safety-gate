@@ -25,6 +25,7 @@
 - Refuse automatic recovery when a target changed concurrently after Promotion touched it.
 - Pin the official PowerShell runtime archive, full runtime tree, file count, and size.
 - Add deterministic release assembly, per-file manifests, archive verification, and Windows CI release builds.
+- Add maintainer publishing instructions and release notes that state unsupported profiles and residual risk.
 
 ## 3.0.0-alpha.6 - 2026-08-09
 

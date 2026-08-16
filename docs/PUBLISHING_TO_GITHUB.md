@@ -61,6 +61,8 @@ Only when `release-report.json` says `source_clean=true`,
 `runtime_archive_verified=true`, and `release_eligible=true` should the
 maintainer create a tag and upload the ZIP plus `SHA256SUMS.txt` to a GitHub
 Release. The tag, source commit, archive hash, and release manifest must agree.
+Use `docs/RELEASE_NOTES_3.0.0-alpha.8.md` as the release body and recheck that its
+supported profiles and residual-risk statements still match the shipped code.
 
 ## Never publish as proof
 
