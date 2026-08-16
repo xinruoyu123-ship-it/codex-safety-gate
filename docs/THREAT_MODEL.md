@@ -62,12 +62,18 @@ Untrusted until evidence proves otherwise:
 15. A failed promotion restores attempted destination files only when they still
     match the promoted hash; concurrent changes stop recovery and preserve backups.
 16. Artifact and archive resource limits are checked before hashing or extraction.
+17. GitHub source links resolve to a full commit before freezing; `tree` links are
+    scoped to the selected directory and `blob` / `raw` links retain only the
+    containing directory. GitHub API/codeload fallback is commit-pinned and its
+    upstream archive hash is recorded.
 
 ## Current detection coverage
 
 - PowerShell and JSON syntax;
 - source/archive/payload hash tampering;
 - selected static capability indicators;
+- legal-notice files are excluded from executable capability matching so license
+  URLs do not become false network permissions;
 - profile-specific gates for Skills, agent routers, and proxies;
 - generated Codex-home output paths;
 - promotion replay, approval mismatch, and rollback conflicts;

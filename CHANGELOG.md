@@ -1,10 +1,14 @@
 # Changelog
 
-## 3.0.0-alpha.7 - Unreleased
+## 3.0.0-alpha.8 - Unreleased
 
 - Establish a canonical Git repository for the future public release.
 - Support GitHub repository, release, tree, blob, and raw source URLs.
-- Add regression coverage for URL parsing.
+- Resolve GitHub refs through the API and use a commit-pinned codeload fallback when Git is unavailable or clone/fetch fails.
+- Scope `tree` links to the selected directory and retain parent directories for `blob` / `raw` file links.
+- Record source subpath, link kind, and upstream codeload archive hash in provenance.
+- Add regression coverage for URL parsing, slash refs, commit refs, scoped selection, and Git temporary cleanup.
+- Ignore legal-notice URLs when deriving executable capabilities from source text.
 - Fix VirtualBox discovery after unattended installation when the current process PATH is stale.
 - Resume partial Windows ISO downloads instead of deleting them.
 - Require a pinned ISO SHA256 unless an explicit development-only override is used.

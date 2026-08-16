@@ -17,7 +17,7 @@ machine” without installing unsealed content into the user's real `.codex`.
 |---|---|---|
 | Windows | Windows 11 Pro/Enterprise/Education x64 | Home can run static checks but Sandbox acceptance is blocked. |
 | PowerShell | `pwsh` 7.0 or newer | Launcher explains the missing prerequisite. |
-| Git | `git` is callable | Local fixtures remain testable; GitHub freeze is blocked. |
+| Git | `git` is callable (preferred) | If unavailable or clone/fetch fails, GitHub API + commit-pinned codeload fallback is exercised; local fixtures remain testable. |
 | Codex | Codex Desktop or CLI is present | Record as a product-environment blocker. |
 | Windows Sandbox | Feature enabled and launcher callable | Do not fall back to host execution. |
 

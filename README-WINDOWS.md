@@ -45,6 +45,8 @@ PowerShell Engine 仍保留在 `csg.ps1` 和 `modules/` 中，但定位是：
 一次点击完成：
 
 - GitHub tag / commit 冻结
+- Git 不可用或网络 clone 失败时自动使用 GitHub API + commit-pinned codeload 回退
+- `tree` 只取目标目录；`blob` / `raw` 保留文件所在目录资源
 - source tree SHA256
 - static capability scan
 - 风险评级

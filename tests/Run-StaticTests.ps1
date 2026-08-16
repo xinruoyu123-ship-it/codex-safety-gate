@@ -148,19 +148,36 @@ try {
     Assert-Throws {Merge-PromotablePayload -OutputDir $unsupportedOut -PayloadDir (Join-Path $testRoot 'unsupported-payload')|Out-Null} 'Generic surface allowlist' 'only isolated skills'
 
     $githubUrls=@(
-        @{url='https://github.com/octocat/Hello-World';owner='octocat';repo='Hello-World';reference=$null;candidate=$null}
-        @{url='https://github.com/octocat/Hello-World/releases/tag/v1.0';owner='octocat';repo='Hello-World';reference='v1.0';candidate=$null}
-        @{url='https://github.com/octocat/Hello-World/tree/main';owner='octocat';repo='Hello-World';reference=$null;candidate='main'}
-        @{url='https://github.com/octocat/Hello-World/blob/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md'}
-        @{url='https://github.com/octocat/Hello-World/raw/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md'}
-        @{url='https://raw.githubusercontent.com/octocat/Hello-World/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md'}
+        @{url='https://github.com/octocat/Hello-World';owner='octocat';repo='Hello-World';reference=$null;candidate=$null;link_kind='repository'}
+        @{url='https://github.com/octocat/Hello-World/releases/tag/v1.0';owner='octocat';repo='Hello-World';reference='v1.0';candidate=$null;link_kind='release'}
+        @{url='https://github.com/octocat/Hello-World/tree/main';owner='octocat';repo='Hello-World';reference=$null;candidate='main';link_kind='tree'}
+        @{url='https://github.com/octocat/Hello-World/blob/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md';link_kind='blob'}
+        @{url='https://github.com/octocat/Hello-World/raw/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md';link_kind='raw'}
+        @{url='https://raw.githubusercontent.com/octocat/Hello-World/main/README.md';owner='octocat';repo='Hello-World';reference=$null;candidate='main/README.md';link_kind='raw'}
     )
     foreach($case in $githubUrls){
         $parsed=Split-GitHubSourceUrl -Source $case.url
-        $ok=($null -ne $parsed) -and $parsed.owner -eq $case.owner -and $parsed.repo -eq $case.repo -and $parsed.reference -eq $case.reference -and $parsed.candidate -eq $case.candidate
+        $ok=($null -ne $parsed) -and $parsed.owner -eq $case.owner -and $parsed.repo -eq $case.repo -and $parsed.reference -eq $case.reference -and $parsed.candidate -eq $case.candidate -and $parsed.link_kind -eq $case.link_kind
         Assert-Csg $ok 'GitHub URL parsing' $case.url
     }
     Assert-Csg ($null -eq (Split-GitHubSourceUrl -Source 'https://gist.github.com/octocat/example')) 'GitHub URL rejection' 'unsupported gist URL rejected'
+    Assert-Csg ($null -eq (Split-GitHubSourceUrl -Source 'https://github.com/bad_owner/Hello-World')) 'GitHub owner validation' 'invalid owner rejected'
+    Assert-Csg ((Get-CsgGitHubSubpath -Candidate 'feature/foo/path/file.md' -Reference 'feature/foo' -LinkKind 'tree') -eq 'path/file.md') 'GitHub subpath resolution' 'slash branch preserved'
+    Assert-Csg ($null -eq (Get-CsgGitHubSubpath -Candidate 'feature/foo' -Reference 'feature/foo' -LinkKind 'tree')) 'GitHub exact tree root' 'exact branch has no subpath'
+    Assert-Throws {Get-CsgGitHubSubpath -Candidate 'main/../escape' -Reference 'main' -LinkKind 'tree'|Out-Null} 'GitHub subpath traversal rejection' 'safe relative path'
+
+    $selectionRepo=Join-Path $testRoot 'github-selection-repo'
+    $selectionSkill=Join-Path $selectionRepo 'skills\demo'
+    New-Item -ItemType Directory -Force -Path $selectionSkill|Out-Null
+    Set-Content -LiteralPath (Join-Path $selectionSkill 'SKILL.md') -Value 'skill' -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $selectionSkill 'helper.ps1') -Value 'helper' -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $selectionRepo 'README.md') -Value 'readme' -Encoding utf8
+    $treeSelection=Join-Path $testRoot 'tree-selection'
+    Copy-CsgGitHubSelection -RepositoryRoot $selectionRepo -Destination $treeSelection -Subpath 'skills/demo' -LinkKind 'tree'
+    Assert-Csg ((Test-Path -LiteralPath (Join-Path $treeSelection 'demo\SKILL.md')) -and -not (Test-Path -LiteralPath (Join-Path $treeSelection 'README.md'))) 'GitHub tree selection' 'only selected directory copied'
+    $blobSelection=Join-Path $testRoot 'blob-selection'
+    Copy-CsgGitHubSelection -RepositoryRoot $selectionRepo -Destination $blobSelection -Subpath 'skills/demo/SKILL.md' -LinkKind 'blob'
+    Assert-Csg ((Test-Path -LiteralPath (Join-Path $blobSelection 'demo\SKILL.md')) -and (Test-Path -LiteralPath (Join-Path $blobSelection 'demo\helper.ps1')) -and -not (Test-Path -LiteralPath (Join-Path $blobSelection 'README.md'))) 'GitHub blob parent selection' 'file link retains sibling resources'
 
     $git=(Get-Command git -ErrorAction Stop).Source
     $gitSource=Join-Path $testRoot 'git-ref-source'
@@ -169,12 +186,26 @@ try {
     & $git -C $gitSource config user.name 'CSG test'
     & $git -C $gitSource config user.email 'csg-test@localhost'
     Set-Content -LiteralPath (Join-Path $gitSource 'README.md') -Value 'fixture' -Encoding utf8
+    $gitSkillDir=Join-Path $gitSource 'skills\demo'
+    New-Item -ItemType Directory -Force -Path $gitSkillDir|Out-Null
+    Set-Content -LiteralPath (Join-Path $gitSkillDir 'SKILL.md') -Value '# local git skill' -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $gitSkillDir 'helper.ps1') -Value 'Write-Output helper' -Encoding utf8
     & $git -C $gitSource add README.md
+    & $git -C $gitSource add skills
     & $git -C $gitSource commit -q -m fixture
+    $fixtureCommit=(& $git -C $gitSource rev-parse HEAD).Trim()
     & $git -C $gitSource branch 'feature/foo'
     & $git clone -q --bare $gitSource $gitRemote
     $resolvedRef=Resolve-GitHubRef -RepositoryUrl $gitRemote -Candidate 'feature/foo/path/file.md' -Git $git
     Assert-Csg ($resolvedRef -eq 'feature/foo') 'GitHub slash-ref resolution' $resolvedRef
+    $resolvedCommit=Resolve-GitHubRef -RepositoryUrl $gitRemote -Candidate "$fixtureCommit/README.md" -Git $git
+    Assert-Csg ($resolvedCommit -eq $fixtureCommit) 'GitHub commit-ref resolution' $resolvedCommit
+    $gitSelectionDest=Join-Path $testRoot 'git-selection'
+    $gitParts=[pscustomobject]@{owner='local';repo='fixture';reference=$null;candidate='feature/foo/skills/demo';link_kind='tree'}
+    $gitProvenance=Resolve-GitHubSourceViaGit -Parts $gitParts -Destination $gitSelectionDest -Git $git -RepositoryUrl $gitRemote
+    Assert-Csg ($gitProvenance.kind -eq 'github' -and $gitProvenance.reference -eq 'feature/foo' -and $gitProvenance.commit -eq $fixtureCommit -and $gitProvenance.source_subpath -eq 'skills/demo' -and $gitProvenance.link_kind -eq 'tree') 'Git controlled selection provenance' ($gitProvenance|ConvertTo-Json -Compress)
+    Assert-Csg ((Test-Path -LiteralPath (Join-Path $gitSelectionDest 'demo\SKILL.md')) -and -not (Test-Path -LiteralPath (Join-Path $gitSelectionDest 'README.md')) -and -not (Test-Path -LiteralPath (Join-Path $gitSelectionDest '.git'))) 'Git controlled selection payload' 'selected tree copied without .git'
+    Assert-Csg (@(Get-ChildItem -LiteralPath $testRoot -Filter '.csg-git-*' -Directory -Force).Count -eq 0) 'Git temporary cleanup' 'controlled clone directory removed'
     Assert-Throws {Resolve-GitHubRef -RepositoryUrl $gitRemote -Candidate 'missing/path/file.md' -Git $git|Out-Null} 'GitHub ambiguous-ref rejection' '无法可靠识别'
 
     $runtimeManifest=Get-Content -LiteralPath (Join-Path $repo 'runtime\manifest.json') -Raw -Encoding utf8|ConvertFrom-Json
@@ -202,6 +233,7 @@ try {
     $plainInspection=Invoke-ArtifactInspection -ArtifactId $plain.artifact_id
     $plainProfile=Get-AddonProfile -ArtifactId $plain.artifact_id
     Assert-Csg ($plainInspection.risk_band -eq 'YELLOW') 'Plain skill risk' $plainInspection.risk_band
+    Assert-Csg ('network.outbound' -notin @($plainInspection.capabilities)) 'Legal notice URL exclusion' 'LICENSE URLs are not executable network evidence'
     Assert-Csg ($plainProfile.profile -eq 'skill' -and $plainProfile.automatic) 'Plain skill profile' "$($plainProfile.profile), automatic=$($plainProfile.automatic)"
     Assert-Csg ($plainProfile.install_command -match 'Get-ChildItem -LiteralPath' -and $plainProfile.install_command -match 'skills\\demo-skill') 'Safe skill recipe' $plainProfile.install_command
     $plainCard=Get-CsgPermissionCard -Inspection $plainInspection -Profile $plainProfile

@@ -1,0 +1,4 @@
+Copyright (c) 2026 CSG test fixture
+
+This fixture is distributed under the Apache License, Version 2.0.
+See https://www.apache.org/licenses/LICENSE-2.0 for the license text.

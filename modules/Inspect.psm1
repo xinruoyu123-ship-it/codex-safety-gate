@@ -51,15 +51,18 @@ function Invoke-ArtifactInspection {
                 }
             }
             try{$text=[IO.File]::ReadAllText($f.FullName)}catch{continue}
-            foreach($rule in Get-RiskRules){
-                foreach($match in ([regex]::Matches($text,$rule.regex)|Select-Object -First 8)){
-                    $line=(($text.Substring(0,$match.Index)) -split "`n").Count
-                    $snippet=($match.Value -replace '\s+',' ').Trim()
-                    if($snippet.Length -gt 180){$snippet=$snippet.Substring(0,180)+'…'}
-                    $findings += [pscustomobject]@{
-                        rule=$rule.id; capability=$rule.cap; severity=$rule.severity
-                        file=$relative
-                        line=$line; evidence=$snippet
+            $isLegalNotice=$f.Name -match '^(?i:LICENSE|COPYING|NOTICE)(?:[-_.].*)?$'
+            if(-not $isLegalNotice){
+                foreach($rule in Get-RiskRules){
+                    foreach($match in ([regex]::Matches($text,$rule.regex)|Select-Object -First 8)){
+                        $line=(($text.Substring(0,$match.Index)) -split "`n").Count
+                        $snippet=($match.Value -replace '\s+',' ').Trim()
+                        if($snippet.Length -gt 180){$snippet=$snippet.Substring(0,180)+'…'}
+                        $findings += [pscustomobject]@{
+                            rule=$rule.id; capability=$rule.cap; severity=$rule.severity
+                            file=$relative
+                            line=$line; evidence=$snippet
+                        }
                     }
                 }
             }

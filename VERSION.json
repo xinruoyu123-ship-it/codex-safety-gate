@@ -1,12 +1,15 @@
 {
   "name": "codex-safety-gate",
-  "version": "3.0.0-alpha.7",
+  "version": "3.0.0-alpha.8",
   "platform": "Windows-only",
   "security_invariant": "third-party installers execute only in Windows Sandbox; promotion copies sealed payload only",
   "created": "2026-08-08",
   "changes": [
     "Established the canonical Git repository for public development",
     "Added GitHub repository, tree, blob, and raw URL freezing support",
+    "Added commit-pinned GitHub API and codeload fallback with scoped link selection",
+    "Added Git temporary checkout cleanup and source provenance fields",
+    "Excluded legal-notice URLs from executable capability detection",
     "Hardened VirtualBox discovery, VM credentials, ISO resume, and integrity gates",
     "Added Apache-2.0 licensing and a private vulnerability reporting policy",
     "Added path containment, reparse-point, protected-path, and atomic-state defenses",

@@ -1,6 +1,6 @@
 # Codex Safety Gate (CSG)
 
-**Status: 3.0.0-alpha.7 / pre-release / Windows-first.**
+**Status: 3.0.0-alpha.8 / pre-release / Windows-first.**
 
 This repository is the canonical source for the future public CSG release.
 Historical local alpha packages are evidence, not the source of truth.
@@ -96,7 +96,9 @@ publication.
 - Windows 10/11 edition that supports Windows Sandbox (Windows Home is not supported).
 - Windows Sandbox feature enabled.
 - PowerShell 7 on the host.
-- Git on the host for GitHub source freezing.
+- Git on the host is preferred for GitHub source freezing. If Git is unavailable
+  or the clone/fetch fails, CSG resolves the ref through the GitHub API and uses
+  a commit-pinned codeload archive instead.
 - The installer command must be runnable **inside Windows Sandbox** using software available there.
 
 ### PowerShell 7 caveat
@@ -130,11 +132,16 @@ pwsh -NoProfile -File .\csg.ps1 freeze `
   -Source "https://github.com/moonjoin/codex-auto-agent-router/releases/tag/v1.0.1"
 ```
 
-仓库首页、`tree`、`blob` 和 `raw` 链接都会被识别；文件页链接会按链接所在的仓库和分支冻结源码。
+仓库首页、`tree`、`blob` 和 `raw` 链接都会被识别。`tree` 链接只冻结目标目录；`blob` / `raw`
+文件链接会保留文件所在目录，以免漏掉同目录的 `SKILL.md`、脚本或资源。带路径的链接会先
+解析出明确的分支、标签或提交，再固定完整提交 SHA；无法无歧义解析时直接失败。
 
 You receive an `ArtifactId`.
 
-The source is cloned once, `.git` is removed, the source tree is hashed, a frozen `source.zip` is created, and the archive is SHA256-pinned.
+The source is fetched once through Git or the commit-pinned GitHub codeload fallback,
+`.git` is removed, the selected source tree is hashed, a frozen `source.zip` is created,
+and the archive is SHA256-pinned. The manifest records the resolved commit, link type,
+selected subpath, and (for codeload) the upstream archive hash.
 
 All later stages use the frozen archive. They do not refetch the repository.
 
