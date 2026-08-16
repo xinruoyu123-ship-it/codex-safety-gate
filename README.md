@@ -91,6 +91,23 @@ publication.
 - **Sandbox verified:** the real VM/Sandbox workflow passes with retained logs.
 - **Not verified:** missing or indirect evidence; never present this as a pass.
 
+## Fast path for users
+
+1. Download the latest Windows ZIP from the GitHub Releases page and extract the
+   complete directory.
+2. Double-click `CSG.cmd` (or run it with `--smoke` to check the launcher).
+3. Paste the third-party GitHub repository, `tree`, `blob`, or `raw` URL into the
+   GUI and choose **检查这个**.
+4. Read the risk band and permission card. Continue to Sandbox only when the
+   displayed profile and requested permissions match your intent.
+5. Do not approve installation when the result is `RED`, the profile is unknown,
+   or Sandbox evidence is missing. CSG never treats a static report as a safety
+   certification.
+
+The release ZIP is the normal user path; a source checkout is for contributors and
+host-safe development checks. Publication steps for maintainers are in
+[docs/PUBLISHING_TO_GITHUB.md](docs/PUBLISHING_TO_GITHUB.md).
+
 ## Requirements
 
 - Windows 10/11 edition that supports Windows Sandbox (Windows Home is not supported).

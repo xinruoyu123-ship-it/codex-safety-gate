@@ -9,6 +9,8 @@ A green source test is not sufficient to publish a CSG release.
 - [ ] No credentials, machine-specific paths, VM images, local state, or personal notes are tracked.
 - [ ] Windows CI passes from a clean clone.
 - [ ] All documented commands match the shipped interface.
+- [ ] The maintainer handoff in `docs/PUBLISHING_TO_GITHUB.md` was followed without
+      adding local identity, credentials, or machine state to the repository.
 
 ## Package
 

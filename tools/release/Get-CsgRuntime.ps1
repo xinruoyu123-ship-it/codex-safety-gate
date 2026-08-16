@@ -36,7 +36,7 @@ if(-not (Test-Path -LiteralPath $archive)){
     if($ArchivePath){throw "Runtime archive not found: $archive"}
     $download=Join-Path $cache ('.'+[string]$manifest.source.archive+'.'+[guid]::NewGuid().ToString('N')+'.download')
     try{
-        Invoke-WebRequest -Uri ([string]$manifest.source.url) -OutFile $download -MaximumRedirection 10
+        Invoke-WebRequest -Uri ([string]$manifest.source.url) -OutFile $download -MaximumRedirection 10 -TimeoutSec 120
         if((Get-Sha256 $download) -ne [string]$manifest.source.archive_sha256){throw 'Downloaded runtime archive SHA256 does not match runtime/manifest.json.'}
         [IO.File]::Move($download,$archive,$true)
     }finally{
