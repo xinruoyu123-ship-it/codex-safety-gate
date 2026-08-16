@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CSG Agent Runtime Budget Declaration",
+  "type": "object",
+  "required": ["schema_version", "enforcement", "limits", "allowed_model_tiers", "benchmark"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "enforcement": { "const": "runtime" },
+    "limits": {
+      "type": "object",
+      "required": ["max_children", "max_concurrent", "max_depth", "max_sol_calls", "max_retry_per_task"],
+      "properties": {
+        "max_children": { "type": "integer", "minimum": 0 },
+        "max_concurrent": { "type": "integer", "minimum": 0 },
+        "max_depth": { "type": "integer", "minimum": 0 },
+        "max_sol_calls": { "type": "integer", "minimum": 0 },
+        "max_retry_per_task": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "allowed_model_tiers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["luna", "terra", "sol"] }
+    },
+    "benchmark": {
+      "type": "object",
+      "required": ["require_quality_gate", "metrics"],
+      "properties": {
+        "require_quality_gate": { "const": true },
+        "metrics": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

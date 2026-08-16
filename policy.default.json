@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "defaults": {
+    "sandbox_required": true,
+    "network": "disabled",
+    "clipboard": "disabled",
+    "vgpu": "disabled",
+    "promote_executes_third_party_code": false,
+    "auto_delete_main_files": false,
+    "require_exact_approval_challenge": true
+  },
+  "risk_policy": {
+    "GREEN": "sandbox allowed",
+    "YELLOW": "sandbox allowed; review capabilities",
+    "ORANGE": "sandbox allowed after manual source review; promotion should be narrow",
+    "RED": "stage blocked by default"
+  },
+  "runtime_budget": {
+    "limits": {
+      "max_children": 4,
+      "max_concurrent": 2,
+      "max_depth": 1,
+      "max_sol_calls": 1,
+      "max_retry_per_task": 1
+    },
+    "allowed_model_tiers": ["luna", "terra", "sol"],
+    "require_quality_gate": true,
+    "required_metrics": [
+      "input_tokens",
+      "output_tokens",
+      "reasoning_tokens",
+      "agent_count",
+      "call_count",
+      "retry_count",
+      "success",
+      "latency_ms"
+    ]
+  },
+  "promotable_surfaces": [
+    "sandbox-output/codex-home/**",
+    "sandbox-output/user/.codex/**"
+  ],
+  "non_promotable_by_default": [
+    "services",
+    "scheduled tasks",
+    "registry writes",
+    "PATH writes",
+    "external binaries",
+    "credential stores"
+  ]
+}

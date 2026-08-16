@@ -1,0 +1,28 @@
+# Local portable runtime. Release packaging adds this after verification.
+/runtime/pwsh/
+
+# Local test and diagnostic output.
+/.devtools/
+/test-results/
+*.log
+*.tmp
+
+# VM images and machine-local state.
+*.iso
+*.vdi
+*.vbox
+*.vbox-prev
+*.sav
+*.nvram
+
+# Windows shortcuts and editor state.
+*.lnk
+.vs/
+.vscode/
+.idea/
+
+# Secrets and local Codex state must never enter the repository.
+auth.json
+/.codex/
+/.codex-safety-v2/
+

@@ -1,0 +1,8 @@
+{
+  "name": "PowerShell portable runtime",
+  "version": "7.6.4",
+  "platform": "win-x64",
+  "executable": "pwsh/pwsh.exe",
+  "executable_sha256": "db6dd81183fe57d22e03b911ec9a30a2fd7c40542e97743615355a6fb44f458f",
+  "purpose": "Bundled GUI runtime and read-only CSG engine host"
+}

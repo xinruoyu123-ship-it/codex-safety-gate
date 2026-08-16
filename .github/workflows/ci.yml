@@ -1,0 +1,42 @@
+name: Windows CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-safe-tests:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Confirm source checkout excludes bundled runtime
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath 'runtime\pwsh') {
+            throw 'runtime/pwsh must be assembled for releases, not committed to source.'
+          }
+
+      - name: Run static security regression
+        shell: pwsh
+        run: pwsh -NoProfile -File .\tests\Run-StaticTests.ps1
+
+      - name: Run GUI state regression
+        shell: pwsh
+        run: pwsh -NoProfile -File .\tests\Run-GuiSmokeTests.ps1
+
+      - name: Run source-checkout launcher smoke test
+        shell: pwsh
+        run: pwsh -NoProfile -File .\tests\Run-LauncherTests.ps1
+
+      - name: Validate VM provisioning contract
+        shell: pwsh
+        run: pwsh -NoProfile -File .\tests\Run-VmProvisioningTests.ps1
+

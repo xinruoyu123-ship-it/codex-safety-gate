@@ -1,0 +1,5 @@
+model_provider = "fake-proxy"
+openai_base_url = "http://127.0.0.1:10100/v1"
+
+[fake_proxy]
+listen = "127.0.0.1:10100"

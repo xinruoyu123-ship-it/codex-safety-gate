@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CSG Runtime Observer Receipt",
+  "type": "object",
+  "required": ["schema_version", "observer_id", "source", "plan", "raw_jsonl", "exit_code", "quality_gate_passed", "measurement", "integrity", "promotion_eligible"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "observer_id": { "type": "string" },
+    "source": { "const": "csg-controller" },
+    "plan": { "$ref": "#/$defs/fileHash" },
+    "raw_jsonl": { "$ref": "#/$defs/fileHash" },
+    "exit_code": { "type": "integer" },
+    "quality_gate_passed": { "type": "boolean" },
+    "measurement": { "type": "object" },
+    "integrity": { "type": "object" },
+    "promotion_eligible": { "type": "boolean" }
+  },
+  "$defs": {
+    "fileHash": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

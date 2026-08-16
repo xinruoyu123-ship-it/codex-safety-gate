@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CSG V2 Sealed Stage",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "stage_id",
+    "artifact_id",
+    "state",
+    "payload",
+    "approval_challenge"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "stage_id": {
+      "type": "string"
+    },
+    "artifact_id": {
+      "type": "string"
+    },
+    "state": {
+      "const": "sealed"
+    },
+    "risk_band": {
+      "enum": [
+        "GREEN",
+        "YELLOW",
+        "ORANGE",
+        "RED"
+      ]
+    },
+    "allow_network": {
+      "type": "boolean"
+    },
+    "observed_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "tree_sha256",
+        "files"
+      ],
+      "properties": {
+        "tree_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files": {
+          "type": "array"
+        }
+      }
+    },
+    "approval_challenge": {
+      "type": "string"
+    }
+  }
+}
