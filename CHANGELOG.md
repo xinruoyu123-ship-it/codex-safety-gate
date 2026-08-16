@@ -10,6 +10,17 @@
 - Require a pinned ISO SHA256 unless an explicit development-only override is used.
 - Replace the documented default VM password with a generated per-VM password.
 - Add Apache-2.0 licensing and a security reporting policy.
+- Reject identifier/path traversal and reparse points at freeze, stage, promotion, and rollback boundaries.
+- Block credential and session paths from generic promotion.
+- Restrict frozen-artifact extraction to CSG-owned temporary directories.
+- Write JSON state atomically to avoid truncating security records on interrupted writes.
+- Restore all attempted destination changes when promotion fails before registry completion.
+- Fail closed when a GitHub tree/blob/raw link cannot be mapped to an unambiguous ref.
+- Enforce configurable artifact file-count, size, path-length, duplicate-path, and archive-traversal limits.
+- Limit generic Promotion to isolated `skills/<name>/**` payloads; shared Codex state fails closed.
+- Refuse automatic recovery when a target changed concurrently after Promotion touched it.
+- Pin the official PowerShell runtime archive, full runtime tree, file count, and size.
+- Add deterministic release assembly, per-file manifests, archive verification, and Windows CI release builds.
 
 ## 3.0.0-alpha.6 - 2026-08-09
 

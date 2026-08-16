@@ -24,8 +24,7 @@ machine. During diagnosis, a full C drive also produced one zero-byte test
 ## Recovery action
 
 Four `plain-skill` smoke artifacts created during diagnosis were moved, not
-deleted, to:
-
-`D:\NVIDIA\codex-safety-gate-windows-alpha1-work\codex-safety-gate-windows\.devtools\quarantine-launcher-smoke-20260809-2320`
+deleted, to a machine-local `.devtools/quarantine-launcher-smoke-20260809-2320`
+directory outside the tracked release source.
 
 The user's default CSG artifact directory was empty after quarantine.

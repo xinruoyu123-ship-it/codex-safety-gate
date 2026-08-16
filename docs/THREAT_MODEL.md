@@ -56,6 +56,12 @@ Untrusted until evidence proves otherwise:
 10. Rollback refuses to overwrite files changed after promotion.
 11. Missing runtime-budget or observer evidence blocks affected profiles.
 12. Unsupported capabilities fail closed.
+13. Generic promotion accepts only isolated `skills/<name>/**` payloads; shared
+    configuration, credentials, sessions, history, and application state fail closed.
+14. Reparse points and paths outside CSG-controlled roots are rejected.
+15. A failed promotion restores attempted destination files only when they still
+    match the promoted hash; concurrent changes stop recovery and preserve backups.
+16. Artifact and archive resource limits are checked before hashing or extraction.
 
 ## Current detection coverage
 
@@ -89,4 +95,3 @@ expansion. It must never be converted into a silent host fallback.
 - real Windows Sandbox logs for freeze, stage, seal, promote, conflict, rollback;
 - proof that the real `.codex` and credentials were not mapped or modified;
 - documented known gaps and support matrix matching actual behavior.
-

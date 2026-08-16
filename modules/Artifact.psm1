@@ -1,5 +1,60 @@
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
 
+function Get-CsgArtifactLimits {
+    $policyPath=Join-Path (Split-Path -Parent $PSScriptRoot) 'policy.default.json'
+    return (Read-JsonFile $policyPath).artifact_limits
+}
+
+function Assert-CsgContentLimits {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)]$Limits
+    )
+    $files=@(Get-ChildItem -LiteralPath $Root -Recurse -Force -File -ErrorAction Stop)
+    if($files.Count -gt [int]$Limits.max_files){throw "Artifact has $($files.Count) files; limit is $($Limits.max_files)."}
+    [long]$total=0
+    foreach($file in $files){
+        if([long]$file.Length -gt [long]$Limits.max_single_file_bytes){throw "Artifact file exceeds the single-file limit: $($file.FullName)"}
+        $relative=Get-RelativePathSafe -Base $Root -Full $file.FullName
+        if($relative.Length -gt [int]$Limits.max_relative_path_chars){throw "Artifact path exceeds the length limit: $relative"}
+        if($total -gt ([long]$Limits.max_total_bytes - [long]$file.Length)){throw "Artifact expanded size exceeds $($Limits.max_total_bytes) bytes."}
+        $total += [long]$file.Length
+    }
+    return [pscustomobject]@{files=$files.Count;total_bytes=$total}
+}
+
+function Test-CsgZipArchive {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)]$Limits
+    )
+    $archive=[IO.Compression.ZipFile]::OpenRead($Path)
+    try{
+        $seen=@{}
+        [long]$total=0
+        [int]$fileCount=0
+        foreach($entry in $archive.Entries){
+            $relative=$entry.FullName.Replace('/','\').TrimEnd('\')
+            if([string]::IsNullOrWhiteSpace($relative)){continue}
+            if($relative.StartsWith('\') -or $relative.Contains(':') -or $relative -match '(^|\\)\.\.(\\|$)'){
+                throw "Archive entry escapes the artifact root: $($entry.FullName)"
+            }
+            if($relative.Length -gt [int]$Limits.max_relative_path_chars){throw "Archive path exceeds the length limit: $relative"}
+            if($entry.Name){
+                $key=$relative.ToLowerInvariant()
+                if($seen.ContainsKey($key)){throw "Archive contains a duplicate path: $relative"}
+                $seen[$key]=$true
+                $fileCount++
+                if($fileCount -gt [int]$Limits.max_files){throw "Archive file count exceeds $($Limits.max_files)."}
+                if([long]$entry.Length -gt [long]$Limits.max_single_file_bytes){throw "Archive entry exceeds the single-file limit: $relative"}
+                if($total -gt ([long]$Limits.max_total_bytes - [long]$entry.Length)){throw "Archive expanded size exceeds $($Limits.max_total_bytes) bytes."}
+                $total += [long]$entry.Length
+            }
+        }
+        return [pscustomobject]@{files=$fileCount;total_bytes=$total}
+    }finally{$archive.Dispose()}
+}
+
 function Resolve-GitHubSource {
     param([Parameter(Mandatory)][string]$Source,[Parameter(Mandatory)][string]$Destination)
 
@@ -23,26 +78,31 @@ function Resolve-GitHubSource {
     $owner=$parts.owner
     $repo=$parts.repo
     $git=(Get-Command git -ErrorAction Stop).Source
-    $repositoryUrl="https://github.com/$owner/$repo.git"
-    $ref=$parts.reference
-    if(-not $ref -and $parts.candidate){
-        $ref=Resolve-GitHubRef -RepositoryUrl $repositoryUrl -Candidate $parts.candidate -Git $git
+    $oldGitPrompt=$env:GIT_TERMINAL_PROMPT
+    $env:GIT_TERMINAL_PROMPT='0'
+    try {
+        $repositoryUrl="https://github.com/$owner/$repo.git"
+        $ref=$parts.reference
+        if(-not $ref -and $parts.candidate){
+            $ref=Resolve-GitHubRef -RepositoryUrl $repositoryUrl -Candidate $parts.candidate -Git $git
+        }
+        if($ref){
+            & $git init -q $Destination
+            if($LASTEXITCODE -ne 0){ throw 'git init failed.' }
+            & $git -C $Destination remote add origin $repositoryUrl
+            if($LASTEXITCODE -ne 0){ throw 'git remote add failed.' }
+            & $git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=30 -C $Destination fetch --depth 1 origin $ref
+            if($LASTEXITCODE -ne 0){ throw 'git fetch failed.' }
+            & $git -C $Destination checkout -q FETCH_HEAD
+            if($LASTEXITCODE -ne 0){ throw 'git checkout failed.' }
+        } else {
+            & $git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=30 clone --depth 1 $repositoryUrl $Destination
+            if($LASTEXITCODE -ne 0){ throw 'git clone failed.' }
+        }
+        $commit=(& $git -C $Destination rev-parse HEAD).Trim()
+    } finally {
+        if($null -eq $oldGitPrompt){Remove-Item Env:GIT_TERMINAL_PROMPT -ErrorAction SilentlyContinue}else{$env:GIT_TERMINAL_PROMPT=$oldGitPrompt}
     }
-
-    if($ref){
-        & $git init -q $Destination
-        if($LASTEXITCODE -ne 0){ throw 'git init failed.' }
-        & $git -C $Destination remote add origin $repositoryUrl
-        if($LASTEXITCODE -ne 0){ throw 'git remote add failed.' }
-        & $git -C $Destination fetch --depth 1 origin $ref
-        if($LASTEXITCODE -ne 0){ throw 'git fetch failed.' }
-        & $git -C $Destination checkout -q FETCH_HEAD
-        if($LASTEXITCODE -ne 0){ throw 'git checkout failed.' }
-    } else {
-        & $git clone --depth 1 $repositoryUrl $Destination
-        if($LASTEXITCODE -ne 0){ throw 'git clone failed.' }
-    }
-    $commit=(& $git -C $Destination rev-parse HEAD).Trim()
 
     # Strip .git from the frozen source; provenance is recorded separately.
     Remove-Item -LiteralPath (Join-Path $Destination '.git') -Recurse -Force -ErrorAction SilentlyContinue
@@ -88,7 +148,7 @@ function Resolve-GitHubRef {
 
     $best=$null
     try {
-        $refs=& $Git ls-remote --heads --tags $RepositoryUrl 2>$null
+        $refs=& $Git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=30 ls-remote --heads --tags $RepositoryUrl 2>$null
         if($LASTEXITCODE -eq 0){
             foreach($line in @($refs)){
                 $parts=$line -split "`t"
@@ -107,7 +167,7 @@ function Resolve-GitHubRef {
     } catch { }
 
     if($best){ return $best }
-    return ($candidate -split '/')[0]
+    throw "无法可靠识别 GitHub 链接中的分支或标签：$Candidate。请检查网络，或改用仓库首页/明确 release tag。"
 }
 
 function New-FrozenArtifact {
@@ -122,6 +182,8 @@ function New-FrozenArtifact {
     try {
         $prov=Resolve-GitHubSource -Source $Source -Destination $src
         Remove-Item -LiteralPath (Join-Path $src '.git') -Recurse -Force -ErrorAction SilentlyContinue
+        $limits=Get-CsgArtifactLimits
+        $null=Assert-CsgContentLimits -Root $src -Limits $limits
         $treeHash=Get-PayloadTreeHash $src
 
         $zip=Join-Path $dir 'source.zip'
@@ -156,8 +218,10 @@ function New-FrozenArtifact {
 
 function Get-FrozenArtifact {
     param([Parameter(Mandatory)][string]$ArtifactId)
+    $null=Assert-CsgSafeId -Id $ArtifactId -Kind 'Artifact'
     $root=Initialize-CsgLayout
     $dir=Join-Path (Join-Path $root 'artifacts') $ArtifactId
+    Assert-NoReparsePoints -Root $dir
     $mPath=Join-Path $dir 'artifact.json'
     if(-not (Test-Path -LiteralPath $mPath)){ throw "Unknown ArtifactId: $ArtifactId" }
     $m=Read-JsonFile $mPath
@@ -169,12 +233,19 @@ function Get-FrozenArtifact {
 function Expand-FrozenArtifact {
     param([Parameter(Mandatory)][string]$ArtifactId,[Parameter(Mandatory)][string]$Destination)
     $a=Get-FrozenArtifact $ArtifactId
-    if(Test-Path -LiteralPath $Destination){Remove-Item -LiteralPath $Destination -Recurse -Force}
-    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-    Expand-Archive -LiteralPath $a.zip -DestinationPath $Destination -Force
-    $hash=Get-PayloadTreeHash $Destination
+    $root=Initialize-CsgLayout
+    $tmpRoot=Join-Path $root 'tmp'
+    $destinationFull=[IO.Path]::GetFullPath($Destination)
+    $relativeDestination=Get-RelativePathSafe -Base $tmpRoot -Full $destinationFull
+    if($relativeDestination -eq '.'){throw 'Frozen artifacts must expand into a dedicated child of the CSG temporary directory.'}
+    if(Test-Path -LiteralPath $destinationFull){Assert-NoReparsePoints -Root $destinationFull}
+    $null=Test-CsgZipArchive -Path $a.zip -Limits (Get-CsgArtifactLimits)
+    if(Test-Path -LiteralPath $destinationFull){Remove-Item -LiteralPath $destinationFull -Recurse -Force}
+    New-Item -ItemType Directory -Force -Path $destinationFull | Out-Null
+    Expand-Archive -LiteralPath $a.zip -DestinationPath $destinationFull -Force
+    $hash=Get-PayloadTreeHash $destinationFull
     if($hash -ne $a.manifest.provenance.source_tree_sha256){ throw 'Expanded source tree hash mismatch.' }
     return $a.manifest
 }
 
-Export-ModuleMember -Function *
+Export-ModuleMember -Function New-FrozenArtifact,Get-FrozenArtifact,Expand-FrozenArtifact,Split-GitHubSourceUrl,Resolve-GitHubRef,Get-CsgArtifactLimits,Assert-CsgContentLimits,Test-CsgZipArchive

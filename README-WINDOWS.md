@@ -128,6 +128,10 @@ GUI 用权限卡片显示：
 
 **不会在主机重新执行第三方 installer。**
 
+当前公开 alpha 的通用 Promotion 只接受 `skills/<name>/**` 独立目录。
+`config.toml`、全局 `AGENTS.md`、会话、历史、凭据、插件和其他 Codex
+运行状态默认拒绝，直到对应专用 Profile 和冲突处理完成。
+
 ## 自动安全笔记
 
 CSG 会维护：

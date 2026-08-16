@@ -79,6 +79,11 @@ no runtime skip.
 These tests do not replace the real Windows Sandbox acceptance flow documented
 in [WINDOWS_TEST_PLAN.md](WINDOWS_TEST_PLAN.md).
 
+Release maintainers use the pinned-runtime and deterministic-package workflow in
+[docs/RELEASING.md](docs/RELEASING.md). A dirty working tree can produce a
+development package, but that package is explicitly marked ineligible for
+publication.
+
 ## Evidence levels
 
 - **Source verified:** host-safe tests pass in a clean source checkout.
@@ -265,7 +270,10 @@ A permission expansion should trigger a fresh manual review.
 
 # Deliberately unsupported promotion behaviors
 
-CSG V2 only auto-promotes Codex-home files.
+The public alpha generic Promotion path accepts only isolated
+`skills/<name>/**` payloads. Shared configuration, global instructions, plugins,
+runtime state, sessions, caches, credentials, and other Codex-home surfaces fail
+closed until they have a dedicated deployment profile and conflict model.
 
 It does **not** automatically reproduce:
 
@@ -276,6 +284,8 @@ It does **not** automatically reproduce:
 - global package installation;
 - binaries installed outside `.codex`;
 - credentials;
+- `config.toml`, global `AGENTS.md`, sessions, history, or Codex application state;
+- plugin or MCP deployment without a dedicated profile;
 - arbitrary files elsewhere in the user profile.
 
 This is intentional.

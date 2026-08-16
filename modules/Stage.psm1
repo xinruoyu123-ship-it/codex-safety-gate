@@ -156,8 +156,10 @@ function Merge-PromotablePayload {
     $origins=@()
     foreach($s in $sources){
         if(-not (Test-Path -LiteralPath $s.root)){continue}
+        Assert-NoReparsePoints -Root $s.root
         foreach($f in Get-ChildItem -LiteralPath $s.root -Recurse -Force -File){
             $rel=(Get-RelativePathSafe -Base $s.root -Full $f.FullName).Replace('/','\')
+            $null=Assert-CsgPromotableCodexPath -RelativePath $rel
             $key=$rel.ToLowerInvariant()
             $hash=Get-Sha256 $f.FullName
             if($seen.ContainsKey($key) -and $seen[$key] -ne $hash){
@@ -226,8 +228,10 @@ function Invoke-SandboxStage {
 
 function Seal-SandboxStage {
     param([Parameter(Mandatory)][string]$StageId)
+    $null=Assert-CsgSafeId -Id $StageId -Kind 'Stage'
     $root=Initialize-CsgLayout
     $sdir=Join-Path (Join-Path $root 'stages') $StageId
+    Assert-NoReparsePoints -Root $sdir
     $stagePath=Join-Path $sdir 'stage.json'
     if(-not (Test-Path -LiteralPath $stagePath)){throw "Unknown StageId: $StageId"}
     $stage=Read-JsonFile $stagePath

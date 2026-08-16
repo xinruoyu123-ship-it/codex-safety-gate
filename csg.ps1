@@ -26,7 +26,7 @@ Import-Module (Join-Path $modules 'Common.psm1') -Force
 Import-Module (Join-Path $modules 'Artifact.psm1') -Force
 Import-Module (Join-Path $modules 'Inspect.psm1') -Force
 Import-Module (Join-Path $modules 'Toolchain.psm1') -Force
-Import-Module (Join-Path $modules 'Stage.psm1') -Force
+Import-Module (Join-Path $modules 'Stage.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path $modules 'Promote.psm1') -Force
 
 switch($Command){

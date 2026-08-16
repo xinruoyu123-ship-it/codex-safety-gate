@@ -11,11 +11,11 @@ permissions:
 jobs:
   host-safe-tests:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Confirm source checkout excludes bundled runtime
         shell: pwsh
@@ -40,3 +40,15 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File .\tests\Run-VmProvisioningTests.ps1
 
+      - name: Import pinned portable PowerShell runtime
+        shell: pwsh
+        run: pwsh -NoProfile -File .\tools\release\Get-CsgRuntime.ps1
+
+      - name: Build and verify publishable release archive
+        shell: pwsh
+        run: |
+          $archive = Join-Path $PWD '.devtools\runtime\PowerShell-7.6.4-win-x64.zip'
+          pwsh -NoProfile -File .\tools\release\Build-CsgRelease.ps1 -RuntimeArchivePath $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $report = Get-Content .\dist\release-report.json -Raw | ConvertFrom-Json
+          if (-not $report.release_eligible) { throw 'CI release archive was not marked publishable.' }

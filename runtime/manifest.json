@@ -4,5 +4,17 @@
   "platform": "win-x64",
   "executable": "pwsh/pwsh.exe",
   "executable_sha256": "db6dd81183fe57d22e03b911ec9a30a2fd7c40542e97743615355a6fb44f458f",
+  "runtime_tree_sha256": "760b749a09d44369199f38ffea19ba01676707a96210676f2f3d0800befcbe14",
+  "file_count": 983,
+  "total_bytes": 296034085,
+  "source": {
+    "publisher": "PowerShell/PowerShell",
+    "release": "v7.6.4",
+    "archive": "PowerShell-7.6.4-win-x64.zip",
+    "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.4/PowerShell-7.6.4-win-x64.zip",
+    "archive_sha256": "80832551c52809301e6071c8bac977beb5a2f1ec953eb4db9f94deb953333793",
+    "hashes_url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.4/hashes.sha256",
+    "hashes_sha256": "c07ba02c95f9f56f467b1e4fc5515e21f88d4842680df5c3b106f8dd4c4d052c"
+  },
   "purpose": "Bundled GUI runtime and read-only CSG engine host"
 }

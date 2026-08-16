@@ -15,6 +15,12 @@
     "ORANGE": "sandbox allowed after manual source review; promotion should be narrow",
     "RED": "stage blocked by default"
   },
+  "artifact_limits": {
+    "max_files": 20000,
+    "max_total_bytes": 1073741824,
+    "max_single_file_bytes": 268435456,
+    "max_relative_path_chars": 240
+  },
   "runtime_budget": {
     "limits": {
       "max_children": 4,
@@ -40,6 +46,7 @@
     "sandbox-output/codex-home/**",
     "sandbox-output/user/.codex/**"
   ],
+  "generic_promotion_destination": "skills/<name>/**",
   "non_promotable_by_default": [
     "services",
     "scheduled tasks",

@@ -4,6 +4,7 @@
 # Local test and diagnostic output.
 /.devtools/
 /test-results/
+/dist/
 *.log
 *.tmp
 
@@ -25,4 +26,3 @@
 auth.json
 /.codex/
 /.codex-safety-v2/
-

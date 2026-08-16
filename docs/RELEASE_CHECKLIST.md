@@ -16,6 +16,8 @@ A green source test is not sufficient to publish a CSG release.
 - [ ] `runtime/manifest.json` matches the packaged executable.
 - [ ] Launcher, static, GUI, and VM validation tests pass with no runtime skip.
 - [ ] Archive inventory and SHA256 are recorded.
+- [ ] `release-report.json` says source clean, runtime archive verified, and release eligible.
+- [ ] A second build from the same commit produces the same ZIP SHA256.
 - [ ] A clean Windows account can extract and launch the package.
 
 ## Sandbox acceptance
@@ -34,4 +36,3 @@ A green source test is not sufficient to publish a CSG release.
 - [ ] Branch protection requires Windows CI.
 - [ ] Release notes state unsupported profiles and residual risk.
 - [ ] Tag, source commit, archive hash, and uploaded assets agree.
-

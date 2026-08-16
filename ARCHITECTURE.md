@@ -38,12 +38,13 @@ Not mapped:
 2. Stage never receives the primary `.codex`.
 3. Network is deny-by-default.
 4. Promotion never executes third-party code.
-5. Promotion only overlays sealed `.codex` files.
+5. Generic Promotion only overlays sealed `skills/<name>/**` files.
 6. Deletion from primary `.codex` is never automatic in V2.
 7. Human approval is exact-string gated and bound to payload hash.
 8. A payload hash change invalidates approval.
 9. RED static artifacts do not stage by default.
 10. Unsupported capabilities fail closed rather than being recreated automatically.
+11. Automatic recovery refuses to overwrite or delete a target changed after Promotion touched it.
 
 ## Why promotion is a copy, not installer replay
 

@@ -11,12 +11,15 @@ function New-TargetBackup {
     $entries=@()
     foreach($f in Get-ChildItem -LiteralPath $Payload -Recurse -Force -File){
         $rel=(Get-RelativePathSafe -Base $Payload -Full $f.FullName).Replace('/','\')
-        $dst=Join-Path $MainCodexHome $rel
+        $null=Assert-CsgPromotableCodexPath -RelativePath $rel
+        $dst=Resolve-CsgChildPath -Root $MainCodexHome -RelativePath $rel -RejectReparsePoints
         $state=Get-FileState $dst
+        if($state.exists -and $state.directory){throw "Promotion target is an existing directory, not a file: $rel"}
         if($state.exists -and -not $state.directory){
             $bak=Join-Path (Join-Path $BackupDir 'files') $rel
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $bak) | Out-Null
             Copy-Item -LiteralPath $dst -Destination $bak -Force
+            if((Get-Sha256 $bak) -ne $state.sha256){throw "Backup hash mismatch: $rel"}
         }
         $entries += [pscustomobject]@{
             path=$rel
@@ -29,6 +32,66 @@ function New-TargetBackup {
     return @($entries)
 }
 
+function Restore-TargetBackupEntries {
+    param(
+        [Parameter(Mandatory)]$Entries,
+        [Parameter(Mandatory)][string]$MainCodexHome,
+        [Parameter(Mandatory)][string]$BackupDir,
+        [Parameter(Mandatory)][string[]]$Paths
+    )
+    $pathSet=@{}
+    foreach($path in $Paths){$pathSet[$path.ToLowerInvariant()]=$true}
+    $selected=@($Entries|Where-Object {$pathSet.ContainsKey(([string]$_.path).ToLowerInvariant())})
+    $plan=New-Object System.Collections.Generic.List[object]
+    $conflicts=New-Object System.Collections.Generic.List[string]
+
+    foreach($entry in $selected){
+        $rel=[string]$entry.path
+        $dst=Resolve-CsgChildPath -Root $MainCodexHome -RelativePath $rel -RejectReparsePoints
+        $now=Get-FileState $dst
+        if([bool]$entry.existed_before){
+            if($now.exists -and -not $now.directory -and [string]$now.sha256 -eq [string]$entry.before_sha256){
+                $plan.Add([pscustomobject]@{entry=$entry;destination=$dst;action='none'})
+            }elseif($now.exists -and -not $now.directory -and [string]$now.sha256 -eq [string]$entry.promoted_sha256){
+                $plan.Add([pscustomobject]@{entry=$entry;destination=$dst;action='restore'})
+            }else{
+                $conflicts.Add($rel)
+            }
+        }else{
+            if(-not $now.exists){
+                $plan.Add([pscustomobject]@{entry=$entry;destination=$dst;action='none'})
+            }elseif(-not $now.directory -and [string]$now.sha256 -eq [string]$entry.promoted_sha256){
+                $plan.Add([pscustomobject]@{entry=$entry;destination=$dst;action='remove'})
+            }else{
+                $conflicts.Add($rel)
+            }
+        }
+    }
+
+    if($conflicts.Count){
+        throw "Automatic recovery blocked because target files changed concurrently: $($conflicts -join ', ')"
+    }
+
+    foreach($item in $plan){
+        if($item.action -eq 'none'){continue}
+        $entry=$item.entry
+        $rel=[string]$entry.path
+        $dst=[string]$item.destination
+        $now=Get-FileState $dst
+        if(-not $now.exists -or $now.directory -or [string]$now.sha256 -ne [string]$entry.promoted_sha256){
+            throw "Automatic recovery target changed after conflict check: $rel"
+        }
+        if($item.action -eq 'restore'){
+            $filesRoot=Join-Path $BackupDir 'files'
+            $bak=Resolve-CsgChildPath -Root $filesRoot -RelativePath $rel -RejectReparsePoints
+            Copy-Item -LiteralPath $bak -Destination $dst -Force
+            if((Get-Sha256 $dst) -ne [string]$entry.before_sha256){throw "Automatic recovery hash mismatch: $rel"}
+        }else{
+            Remove-Item -LiteralPath $dst -Force
+        }
+    }
+}
+
 function Invoke-SealedPromotion {
     param(
         [Parameter(Mandatory)][string]$StageId,
@@ -36,6 +99,7 @@ function Invoke-SealedPromotion {
         [string]$MainCodexHome=(Join-Path $HOME '.codex'),
         [switch]$Apply
     )
+    $null=Assert-CsgSafeId -Id $StageId -Kind 'Stage'
     $root=Initialize-CsgLayout
     $sdir=Join-Path (Join-Path $root 'stages') $StageId
     $stagePath=Join-Path $sdir 'stage.json'
@@ -50,9 +114,18 @@ function Invoke-SealedPromotion {
         throw "Runtime observer gate blocked promotion: $($s.runtime_observer.blocker)"
     }
 
-    $payload=$s.payload.path
+    $payload=Join-Path $sdir 'payload'
+    if([IO.Path]::GetFullPath([string]$s.payload.path) -ne [IO.Path]::GetFullPath($payload)){
+        throw 'Stage payload path does not match its CSG-controlled directory.'
+    }
+    Assert-NoReparsePoints -Root $payload
     $currentHash=Get-PayloadTreeHash $payload
     if($currentHash -ne $s.payload.tree_sha256){throw 'Sealed payload changed after approval challenge was generated.'}
+    $payloadFiles=@(Get-ChildItem -LiteralPath $payload -Recurse -Force -File -ErrorAction Stop)
+    foreach($f in $payloadFiles){
+        $rel=(Get-RelativePathSafe -Base $payload -Full $f.FullName).Replace('/','\')
+        $null=Assert-CsgPromotableCodexPath -RelativePath $rel
+    }
 
     Write-Host "Promotion plan"
     Write-Host "  Stage: $StageId"
@@ -60,7 +133,7 @@ function Invoke-SealedPromotion {
     Write-Host "  Risk: $($s.risk_band)"
     Write-Host "  Payload: $currentHash"
     Write-Host "  Destination: $MainCodexHome"
-    Write-Host "  Files: $(@($s.payload.files).Count)"
+    Write-Host "  Files: $($payloadFiles.Count)"
     Write-Host "  THIRD-PARTY INSTALLER WILL NOT RUN."
     if(@($s.capability_surprises).Count){
         Write-Warning "Capability surprises: $(@($s.capability_surprises) -join ', ')"
@@ -82,33 +155,52 @@ function Invoke-SealedPromotion {
     $backupEntries=New-TargetBackup -Payload $payload -MainCodexHome $MainCodexHome -BackupDir $backup
 
     $changes=@()
-    foreach($f in Get-ChildItem -LiteralPath $payload -Recurse -Force -File){
-        $rel=(Get-RelativePathSafe -Base $payload -Full $f.FullName).Replace('/','\')
-        $dst=Join-Path $MainCodexHome $rel
-        $before=Get-FileState $dst
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
-        Copy-Item -LiteralPath $f.FullName -Destination $dst -Force
-        $srcHash=Get-Sha256 $f.FullName
-        $dstHash=Get-Sha256 $dst
-        if($dstHash -ne $srcHash){throw "Post-copy hash mismatch: $rel"}
-        $changes += [pscustomobject]@{
-            action=if($before.exists){'modified'}else{'added'}
-            path=$rel
-            before=$before.sha256
-            after=$dstHash
+    $attempted=New-Object System.Collections.Generic.List[string]
+    try {
+        foreach($f in $payloadFiles){
+            $rel=(Get-RelativePathSafe -Base $payload -Full $f.FullName).Replace('/','\')
+            $null=Assert-CsgPromotableCodexPath -RelativePath $rel
+            $dst=Resolve-CsgChildPath -Root $MainCodexHome -RelativePath $rel -RejectReparsePoints
+            $backupEntry=@($backupEntries|Where-Object {$_.path -ieq $rel})
+            if($backupEntry.Count -ne 1){throw "Backup manifest entry is missing or ambiguous: $rel"}
+            $before=Get-FileState $dst
+            if([bool]$backupEntry[0].existed_before -ne [bool]$before.exists -or ([bool]$before.exists -and [string]$backupEntry[0].before_sha256 -ne [string]$before.sha256)){
+                throw "Promotion target changed after backup: $rel"
+            }
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
+            $attempted.Add($rel)
+            Copy-Item -LiteralPath $f.FullName -Destination $dst -Force
+            $srcHash=Get-Sha256 $f.FullName
+            $dstHash=Get-Sha256 $dst
+            if($dstHash -ne $srcHash){throw "Post-copy hash mismatch: $rel"}
+            $changes += [pscustomobject]@{
+                action=if($before.exists){'modified'}else{'added'}
+                path=$rel
+                before=$before.sha256
+                after=$dstHash
+            }
         }
-    }
+        if((Get-PayloadTreeHash $payload) -ne $currentHash){throw 'Sealed payload changed during promotion.'}
 
-    $record=[ordered]@{
-        schema_version=2;addon_id=$StageId;status='approved';promoted_at=(Get-Date).ToString('o')
-        artifact_id=$s.artifact_id;risk_band=$s.risk_band;payload_sha256=$currentHash
-        destination=$MainCodexHome;backup=$backup
-        changes=@($changes);capability_surprises=@($s.capability_surprises)
-        approval=$Approval
-        rollback_challenge="ROLLBACK $StageId"
-        invariant='No third-party installer was executed during promotion; only payload target files were touched.'
+        $record=[ordered]@{
+            schema_version=2;addon_id=$StageId;status='approved';promoted_at=(Get-Date).ToString('o')
+            artifact_id=$s.artifact_id;risk_band=$s.risk_band;payload_sha256=$currentHash
+            destination=$MainCodexHome;backup=$backup
+            changes=@($changes);capability_surprises=@($s.capability_surprises)
+            approval=$Approval
+            rollback_challenge="ROLLBACK $StageId"
+            invariant='No third-party installer was executed during promotion; only payload target files were touched.'
+        }
+        Write-JsonFile $record $registryPath
+    } catch {
+        $promotionError=$_.Exception.Message
+        try {
+            Restore-TargetBackupEntries -Entries $backupEntries -MainCodexHome $MainCodexHome -BackupDir $backup -Paths $attempted.ToArray()
+        } catch {
+            throw "Promotion failed: $promotionError Automatic recovery also failed: $($_.Exception.Message) Backup: $backup"
+        }
+        throw "Promotion failed and all attempted file changes were restored: $promotionError"
     }
-    Write-JsonFile $record $registryPath
     Write-Host "Promotion status: approved"
     Write-Host "Backup: $backup"
     Write-Host "Rollback challenge: ROLLBACK $StageId"
@@ -120,6 +212,7 @@ function Invoke-CsgRollback {
         [Parameter(Mandatory)][string]$Confirmation,
         [switch]$Apply
     )
+    $null=Assert-CsgSafeId -Id $StageId -Kind 'Stage'
     $root=Initialize-CsgLayout
     $regPath=Join-Path (Join-Path $root 'registry') "$StageId.json"
     if(-not (Test-Path -LiteralPath $regPath)){throw "No registry record: $StageId"}
@@ -129,7 +222,7 @@ function Invoke-CsgRollback {
 
     $conflicts=@()
     foreach($e in @($backupManifest.entries)){
-        $dst=Join-Path $r.destination $e.path
+        $dst=Resolve-CsgChildPath -Root $r.destination -RelativePath ([string]$e.path) -RejectReparsePoints
         $now=Get-FileState $dst
         if(-not $now.exists -or $now.sha256 -ne $e.promoted_sha256){
             $conflicts += [pscustomobject]@{path=$e.path;expected_promoted=$e.promoted_sha256;current=$now.sha256}
@@ -149,7 +242,7 @@ function Invoke-CsgRollback {
     }
 
     foreach($e in @($backupManifest.entries)){
-        $dst=Join-Path $r.destination $e.path
+        $dst=Resolve-CsgChildPath -Root $r.destination -RelativePath ([string]$e.path) -RejectReparsePoints
         if($e.existed_before){
             $bak=Join-Path (Join-Path $r.backup 'files') $e.path
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
