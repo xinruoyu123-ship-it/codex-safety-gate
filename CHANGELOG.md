@@ -26,6 +26,8 @@
 - Pin the official PowerShell runtime archive, full runtime tree, file count, and size.
 - Add deterministic release assembly, per-file manifests, archive verification, and Windows CI release builds.
 - Add maintainer publishing instructions and release notes that state unsupported profiles and residual risk.
+- Make source input tolerant of surrounding quotes, relative paths, unique path prefixes, file URIs, and Markdown/GitHub shorthand links while rejecting ambiguous matches.
+- Add direct local-file selection (resolving to its extension directory), GUI directory/file browsing, drag-and-drop input, resolved-path visibility, and regression coverage.
 
 ## 3.0.0-alpha.6 - 2026-08-09
 

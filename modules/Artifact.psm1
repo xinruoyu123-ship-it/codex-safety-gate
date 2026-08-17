@@ -264,11 +264,88 @@ function Resolve-GitHubSourceViaGit {
     }
 }
 
+function ConvertTo-CsgSourceText {
+    param([Parameter(Mandatory)][string]$Source)
+
+    $value=$Source.Trim()
+    if([string]::IsNullOrWhiteSpace($value)){throw '来源不能为空。'}
+    $markdown=[regex]::Match($value,'^\[[^\]]+\]\((?<target>[^)]+)\)$')
+    if($markdown.Success){$value=$markdown.Groups['target'].Value.Trim()}
+    $pairs=@(
+        @('"','"'),
+        @("'","'"),
+        @('<','>'),
+        @('`','`'),
+        @(([char]0x201c).ToString(),([char]0x201d).ToString()),
+        @(([char]0x2018).ToString(),([char]0x2019).ToString())
+    )
+    foreach($pair in $pairs){
+        if($value.Length -ge 2 -and $value.StartsWith($pair[0],[StringComparison]::Ordinal) -and $value.EndsWith($pair[1],[StringComparison]::Ordinal)){
+            $value=$value.Substring(1,$value.Length-2).Trim()
+            break
+        }
+    }
+    if($value -match '^(?i)(?:www\.)?github\.com/'){$value="https://$value"}
+    if($value -match '^https://www\.github\.com/'){$value='https://github.com/'+$value.Substring('https://www.github.com/'.Length)}
+    $uri=$null
+    if([uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -and $uri.Scheme -eq 'https' -and $uri.Host -in @('github.com','raw.githubusercontent.com')){
+        $builder=[UriBuilder]::new($uri)
+        $builder.Query='';$builder.Fragment=''
+        $value=$builder.Uri.AbsoluteUri.TrimEnd('/')
+    }
+    return $value
+}
+
+function Resolve-CsgUniquePartialPath {
+    param([Parameter(Mandatory)][string]$Path)
+    if($Path.IndexOfAny([char[]]'*?[]') -ge 0){return $null}
+    try{
+        $full=[IO.Path]::GetFullPath($Path)
+        if(Test-Path -LiteralPath $full){return $full}
+    }catch{return $null}
+    $root=[IO.Path]::GetPathRoot($full)
+    if([string]::IsNullOrWhiteSpace($root)){return $null}
+    $current=$root.TrimEnd('\','/')
+    if($current -match '^[A-Za-z]:$'){$current+='\'}
+    $remainder=$full.Substring($root.Length)
+    $segments=@($remainder -split '[\\/]' | Where-Object {-not [string]::IsNullOrWhiteSpace($_)})
+    foreach($segment in $segments){
+        $exact=Join-Path $current $segment
+        if(Test-Path -LiteralPath $exact){$current=(Get-Item -LiteralPath $exact -Force).FullName;continue}
+        if(-not (Test-Path -LiteralPath $current -PathType Container)){return $null}
+        $matches=@(Get-ChildItem -LiteralPath $current -Force -ErrorAction Stop | Where-Object {$_.Name.StartsWith($segment,[StringComparison]::OrdinalIgnoreCase)})
+        if($matches.Count -gt 1){$examples=(@($matches|Select-Object -First 5 -ExpandProperty FullName)-join '；');throw "路径存在多个匹配，CSG 不会猜测：$examples"}
+        if($matches.Count -eq 0){return $null}
+        $current=$matches[0].FullName
+    }
+    if(Test-Path -LiteralPath $current){return [IO.Path]::GetFullPath($current)}
+    return $null
+}
+
+function Resolve-CsgSourceInput {
+    param([Parameter(Mandatory)][string]$Source)
+    $value=ConvertTo-CsgSourceText -Source $Source
+    if($value -match '^https://(?:github\.com|raw\.githubusercontent\.com)/'){
+        return [pscustomobject]@{kind='github';value=$value;source_path=$null;selected_file=$null}
+    }
+    $uri=$null
+    if([uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -and $uri.IsFile){$value=$uri.LocalPath}
+    $value=[Environment]::ExpandEnvironmentVariables($value)
+    if($value -eq '~'){$value=$HOME}elseif($value -match '^~[\\/]'){$value=Join-Path $HOME $value.Substring(2)}
+    $resolved=Resolve-CsgUniquePartialPath -Path $value
+    if(-not $resolved){throw ('找不到本地来源：{0}。请点击“浏览目录”、拖入文件/目录，或粘贴 GitHub 链接。' -f $value)}
+    $item=Get-Item -LiteralPath $resolved -Force
+    $selectedFile=$null
+    if(-not $item.PSIsContainer){$selectedFile=$item.FullName;$item=Get-Item -LiteralPath $item.Directory.FullName -Force}
+    return [pscustomobject]@{kind='local';value=$item.FullName;source_path=$item.FullName;selected_file=$selectedFile}
+}
+
 function Resolve-GitHubSource {
     param([Parameter(Mandatory)][string]$Source,[Parameter(Mandatory)][string]$Destination)
 
-    if(Test-Path -LiteralPath $Source){
-        $sourcePath=[IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Source).Path).TrimEnd('\','/')
+    $resolvedInput=Resolve-CsgSourceInput -Source $Source
+    if($resolvedInput.kind -eq 'local'){
+        $sourcePath=[IO.Path]::GetFullPath($resolvedInput.value).TrimEnd('\','/')
         $destinationPath=[IO.Path]::GetFullPath($Destination).TrimEnd('\','/')
         $sourcePrefix=$sourcePath+[IO.Path]::DirectorySeparatorChar
         if($destinationPath.StartsWith($sourcePrefix,[StringComparison]::OrdinalIgnoreCase)){
@@ -278,10 +355,13 @@ function Resolve-GitHubSource {
             throw 'Refusing to freeze the whole .codex directory or .codex\sessions. Select only the extension files that are under review.'
         }
         Copy-Tree -Source $sourcePath -Destination $Destination
-        return [pscustomobject]@{kind='local';repository=$null;reference=$null;commit=$null}
+        return [pscustomobject]@{
+            kind='local';repository=$null;reference=$null;commit=$null
+            source_path=$sourcePath;selected_file=$resolvedInput.selected_file
+        }
     }
 
-    $parts=Split-GitHubSourceUrl -Source $Source
+    $parts=Split-GitHubSourceUrl -Source $resolvedInput.value
     if(-not $parts){ throw '来源必须是本地目录或 GitHub 仓库 / tree / blob / raw 链接。' }
 
     $owner=$parts.owner
@@ -303,6 +383,7 @@ function Resolve-GitHubSource {
 function Split-GitHubSourceUrl {
     param([Parameter(Mandatory)][string]$Source)
 
+    $Source=ConvertTo-CsgSourceText -Source $Source
     $rawHost=$false
     $m=[regex]::Match($Source,'^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/?#]+?)(?:\.git)?(?:/releases/tag/(?<tag>[^?#]+)|/(?<kind>tree|blob|raw)/(?<refpath>[^?#]+))?/?$')
     if(-not $m.Success){
@@ -402,6 +483,8 @@ function New-FrozenArtifact {
                 source_subpath=if($prov.PSObject.Properties.Name -contains 'source_subpath'){$prov.source_subpath}else{$null}
                 link_kind=if($prov.PSObject.Properties.Name -contains 'link_kind'){$prov.link_kind}else{$null}
                 upstream_archive_sha256=if($prov.PSObject.Properties.Name -contains 'upstream_archive_sha256'){$prov.upstream_archive_sha256}else{$null}
+                source_path=if($prov.PSObject.Properties.Name -contains 'source_path'){$prov.source_path}else{$null}
+                selected_file=if($prov.PSObject.Properties.Name -contains 'selected_file'){$prov.selected_file}else{$null}
                 source_tree_sha256=$treeHash
                 archive_sha256=$zipHash
             }
@@ -450,4 +533,4 @@ function Expand-FrozenArtifact {
     return $a.manifest
 }
 
-Export-ModuleMember -Function New-FrozenArtifact,Get-FrozenArtifact,Expand-FrozenArtifact,Split-GitHubSourceUrl,Resolve-GitHubRef,Resolve-GitHubRefViaApi,Resolve-GitHubSourceViaGit,Resolve-GitHubSourceViaCodeload,Get-CsgGitHubSubpath,Copy-CsgGitHubSelection,Get-CsgArtifactLimits,Assert-CsgContentLimits,Test-CsgZipArchive
+Export-ModuleMember -Function New-FrozenArtifact,Get-FrozenArtifact,Expand-FrozenArtifact,Resolve-CsgSourceInput,Split-GitHubSourceUrl,Resolve-GitHubRef,Resolve-GitHubRefViaApi,Resolve-GitHubSourceViaGit,Resolve-GitHubSourceViaCodeload,Get-CsgGitHubSubpath,Copy-CsgGitHubSelection,Get-CsgArtifactLimits,Assert-CsgContentLimits,Test-CsgZipArchive

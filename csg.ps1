@@ -56,6 +56,7 @@ switch($Command){
         if(-not $Source){throw 'freeze requires -Source.'}
         $a=New-FrozenArtifact -Source $Source
         Write-Host "ArtifactId: $($a.artifact_id)"
+        if($a.provenance.kind -eq 'local'){Write-Host "Resolved source: $($a.provenance.source_path)"}
         Write-Host "Commit: $($a.provenance.commit)"
         Write-Host "Archive SHA256: $($a.provenance.archive_sha256)"
     }

@@ -46,7 +46,7 @@ $title.Font=New-Object Drawing.Font('Segoe UI Semibold',17)
 $tab.Controls.Add($title)
 
 $intro=New-Object Windows.Forms.Label
-$intro.Text='粘贴 GitHub 仓库 / tree / blob / raw 链接，或本地目录。CSG 会先冻结版本，再告诉你它想获得哪些权限。'
+$intro.Text='粘贴 GitHub 链接，或浏览、拖入本地文件/目录。CSG 会先冻结版本，再告诉你它想获得哪些权限。'
 $intro.Location='23,54';$intro.AutoSize=$true
 $intro.ForeColor=[Drawing.Color]::FromArgb(84,88,96)
 $tab.Controls.Add($intro)
@@ -58,22 +58,35 @@ $urlLabel.Font=New-Object Drawing.Font('Segoe UI Semibold',9.5)
 $tab.Controls.Add($urlLabel)
 
 $url=New-Object Windows.Forms.TextBox
-$url.Location='22,108';$url.Size='700,30';$url.Anchor='Top,Left,Right'
+$url.Location='22,108';$url.Size='502,30';$url.Anchor='Top,Left'
 $url.TabIndex=0
+$url.AllowDrop=$true
 $tab.Controls.Add($url)
+
+$browse=New-Object Windows.Forms.Button
+$browse.Text='浏览目录'
+$browse.Location='534,106';$browse.Size='88,34';$browse.Anchor='Top,Left'
+$browse.TabIndex=1
+$tab.Controls.Add($browse)
+
+$browseFile=New-Object Windows.Forms.Button
+$browseFile.Text='选择文件'
+$browseFile.Location='634,106';$browseFile.Size='88,34';$browseFile.Anchor='Top,Left'
+$browseFile.TabIndex=2
+$tab.Controls.Add($browseFile)
 
 $audit=New-Object Windows.Forms.Button
 $audit.Text='检查这个'
-$audit.Location='738,106';$audit.Size='144,34';$audit.Anchor='Top,Right'
+$audit.Location='738,106';$audit.Size='144,34';$audit.Anchor='Top,Left'
 $audit.FlatStyle='Flat';$audit.FlatAppearance.BorderSize=0
 $audit.BackColor=[Drawing.Color]::FromArgb(36,99,235);$audit.ForeColor=[Drawing.Color]::White
 $audit.Font=New-Object Drawing.Font('Segoe UI Semibold',10)
-$audit.TabIndex=1
+$audit.TabIndex=3
 $tab.Controls.Add($audit)
 
 $summary=New-Object Windows.Forms.RichTextBox
 $summary.Location='22,158';$summary.Size='860,330'
-$summary.Anchor='Top,Left,Right,Bottom'
+$summary.Anchor='Top,Left'
 $summary.ReadOnly=$true
 $summary.BackColor=[Drawing.Color]::White
 $summary.BorderStyle='FixedSingle'
@@ -83,44 +96,73 @@ $tab.Controls.Add($summary)
 
 $network=New-Object Windows.Forms.CheckBox
 $network.Text='本次 Sandbox 测试允许联网（默认断网）'
-$network.Location='22,505';$network.AutoSize=$true;$network.Anchor='Bottom,Left'
-$network.TabIndex=2
+$network.Location='22,505';$network.AutoSize=$true;$network.Anchor='Top,Left'
+$network.TabIndex=4
 $tab.Controls.Add($network)
 
 $action=New-Object Windows.Forms.Button
 $action.Text='安全测试并安装'
-$action.Location='22,540';$action.Size='250,42';$action.Enabled=$false;$action.Anchor='Bottom,Left'
+$action.Location='22,540';$action.Size='250,42';$action.Enabled=$false;$action.Anchor='Top,Left'
 $action.FlatStyle='Flat';$action.FlatAppearance.BorderSize=0
 $action.BackColor=[Drawing.Color]::FromArgb(36,99,235);$action.ForeColor=[Drawing.Color]::White
 $action.Font=New-Object Drawing.Font('Segoe UI Semibold',10.5)
-$action.TabIndex=3
+$action.TabIndex=5
 $tab.Controls.Add($action)
 
 $openNote=New-Object Windows.Forms.Button
 $openNote.Text='打开安全笔记'
-$openNote.Location='286,540';$openNote.Size='128,42';$openNote.Anchor='Bottom,Left'
-$openNote.TabIndex=4
+$openNote.Location='286,540';$openNote.Size='128,42';$openNote.Anchor='Top,Left'
+$openNote.TabIndex=6
 $tab.Controls.Add($openNote)
 
 $flowStatus=New-Object Windows.Forms.Label
 $flowStatus.Text='等待检查'
-$flowStatus.Location='430,551';$flowStatus.Size='270,24';$flowStatus.Anchor='Bottom,Left,Right'
+$flowStatus.Location='430,551';$flowStatus.Size='270,24';$flowStatus.Anchor='Top,Left'
 $flowStatus.ForeColor=[Drawing.Color]::FromArgb(84,88,96)
 $tab.Controls.Add($flowStatus)
 
 $details=New-Object Windows.Forms.Button
 $details.Text='查看技术详情'
-$details.Location='742,540';$details.Size='140,42';$details.Anchor='Bottom,Right'
-$details.TabIndex=5
+$details.Location='742,540';$details.Size='140,42';$details.Anchor='Top,Left'
+$details.TabIndex=7
 $tab.Controls.Add($details)
 
 $status=New-Object Windows.Forms.RichTextBox
 $status.Location='22,592';$status.Size='860,70'
-$status.Anchor='Bottom,Left,Right';$status.ReadOnly=$true;$status.Visible=$false
+$status.Anchor='Top,Left';$status.ReadOnly=$true;$status.Visible=$false
 $status.BackColor=[Drawing.Color]::FromArgb(248,248,248)
 $status.Font=New-Object Drawing.Font('Consolas',8.5)
 $tab.Controls.Add($status)
 $form.AcceptButton=$audit
+
+function Update-NewAddonLayout {
+    $width=$tab.ClientSize.Width
+    $height=$tab.ClientSize.Height
+    if($width -lt 500 -or $height -lt 400){return}
+
+    $right=$width-22
+    $auditLeft=$right-144
+    $browseFileLeft=$auditLeft-100
+    $browseLeft=$browseFileLeft-100
+    $url.SetBounds(22,108,[Math]::Max(220,$browseLeft-34),30)
+    $browse.SetBounds($browseLeft,106,88,34)
+    $browseFile.SetBounds($browseFileLeft,106,88,34)
+    $audit.SetBounds($auditLeft,106,144,34)
+
+    $actionTop=[Math]::Max(430,$height-103)
+    $networkTop=$actionTop-35
+    $summary.SetBounds(22,158,[Math]::Max(400,$width-44),[Math]::Max(220,$networkTop-175))
+    $network.Location=New-Object Drawing.Point(22,$networkTop)
+    $action.SetBounds(22,$actionTop,250,42)
+    $openNote.SetBounds(286,$actionTop,128,42)
+    $detailsLeft=$right-140
+    $details.SetBounds($detailsLeft,$actionTop,140,42)
+    $flowStatus.SetBounds(430,$actionTop+11,[Math]::Max(120,$detailsLeft-446),24)
+    $status.SetBounds(22,$actionTop+52,[Math]::Max(400,$width-44),[Math]::Max(40,$height-$actionTop-62))
+}
+
+$tab.Add_SizeChanged({Update-NewAddonLayout})
+$form.Add_Shown({Update-NewAddonLayout})
 
 $state=[ordered]@{
     artifact=$null
@@ -140,6 +182,10 @@ function SetSummary {
     if(-not $state.inspection){return}
     $state.card=Get-CsgPermissionCard -Inspection $state.inspection -Profile $state.profile -Budget $state.budget -NetworkRequested:$network.Checked
     $text=Format-CsgPermissionCard $state.card
+    if($state.artifact.provenance.kind -eq 'local' -and $state.artifact.provenance.source_path){
+        $sourceLabel=if($state.artifact.provenance.selected_file){'已从所选文件定位到扩展目录'}else{'本地来源'}
+        $text="$sourceLabel：$($state.artifact.provenance.source_path)`r`n`r`n$text"
+    }
     if($state.sealed){
         $text+="`r`n`r`nSandbox 已验证`r`n  产物文件：$(@($state.sealed.payload.files).Count) 个"
         if(@($state.sealed.capability_surprises).Count){
@@ -162,6 +208,7 @@ function Invoke-GuiAudit {
         Log '冻结指定版本…'
         $state.artifact=New-FrozenArtifact -Source $url.Text.Trim()
         Log "Artifact 已冻结：$($state.artifact.artifact_id)"
+        if($state.artifact.provenance.kind -eq 'local'){Log "本地来源已解析：$($state.artifact.provenance.source_path)"}
         $state.inspection=Invoke-ArtifactInspection -ArtifactId $state.artifact.artifact_id
         $state.profile=Get-AddonProfile -ArtifactId $state.artifact.artifact_id
         $state.budget=Get-CsgRuntimeBudget -ArtifactId $state.artifact.artifact_id -Profile $state.profile.profile
@@ -179,6 +226,44 @@ function Invoke-GuiAudit {
 }
 
 $audit.Add_Click({Invoke-GuiAudit})
+
+$browse.Add_Click({
+    $picker=New-Object Windows.Forms.FolderBrowserDialog
+    $picker.Description='选择要检查的扩展目录'
+    $picker.ShowNewFolderButton=$false
+    try{
+        $current=$url.Text.Trim().Trim('"',"'")
+        if(Test-Path -LiteralPath $current -PathType Container){$picker.SelectedPath=(Resolve-Path -LiteralPath $current).Path}
+        if($picker.ShowDialog($form) -eq [Windows.Forms.DialogResult]::OK){$url.Text=$picker.SelectedPath}
+    }finally{$picker.Dispose()}
+})
+
+$browseFile.Add_Click({
+    $picker=New-Object Windows.Forms.OpenFileDialog
+    $picker.Title='选择要检查的扩展文件'
+    $picker.Filter='Codex 扩展文件|SKILL.md;AGENTS.md;*.ps1;*.psm1;*.json;*.md|所有文件|*.*'
+    $picker.CheckFileExists=$true
+    $picker.Multiselect=$false
+    try{
+        $current=$url.Text.Trim().Trim('"',"'")
+        if(Test-Path -LiteralPath $current -PathType Leaf){$picker.InitialDirectory=Split-Path -Parent (Resolve-Path -LiteralPath $current).Path}
+        elseif(Test-Path -LiteralPath $current -PathType Container){$picker.InitialDirectory=(Resolve-Path -LiteralPath $current).Path}
+        if($picker.ShowDialog($form) -eq [Windows.Forms.DialogResult]::OK){$url.Text=$picker.FileName}
+    }finally{$picker.Dispose()}
+})
+
+$url.Add_DragEnter({
+    param($sender,$eventArgs)
+    if($eventArgs.Data.GetDataPresent([Windows.Forms.DataFormats]::FileDrop)){$eventArgs.Effect=[Windows.Forms.DragDropEffects]::Copy}
+    else{$eventArgs.Effect=[Windows.Forms.DragDropEffects]::None}
+})
+
+$url.Add_DragDrop({
+    param($sender,$eventArgs)
+    $paths=@($eventArgs.Data.GetData([Windows.Forms.DataFormats]::FileDrop))
+    if($paths.Count -eq 1){$url.Text=[string]$paths[0]}
+    elseif($paths.Count -gt 1){[Windows.Forms.MessageBox]::Show('一次只能检查一个文件或目录。','CSG','OK','Information')|Out-Null}
+})
 
 $network.Add_CheckedChanged({if($state.inspection){SetSummary}})
 
@@ -322,10 +407,17 @@ CSG Windows 默认规则
 $rulesTab.Controls.Add($rulesText)
 
 if($SmokeTest){
+    $form.Opacity=0
+    $form.Show()
+    [Windows.Forms.Application]::DoEvents()
+    Update-NewAddonLayout
     if(-not [string]::IsNullOrWhiteSpace($SmokeSource)){
         $url.Text=$SmokeSource
         Invoke-GuiAudit -SuppressDialogs
     }
+    $form.Size=$form.MinimumSize
+    [Windows.Forms.Application]::DoEvents()
+    Update-NewAddonLayout
     [pscustomobject]@{
         title=$form.Text
         width=$form.Width
@@ -340,6 +432,13 @@ if($SmokeTest){
         promotion_allowed=if($state.card){$state.card.promotion_allowed}else{$false}
         technical_details_visible=$status.Visible
         permission_card_placeholder=($summary.Text -match '凭据')
+        source_browse_action=$browse.Text
+        source_file_action=$browseFile.Text
+        source_drop_enabled=$url.AllowDrop
+        source_controls_visible=($url.Right -lt $browse.Left -and $browse.Right -lt $browseFile.Left -and $browseFile.Right -lt $audit.Left -and $audit.Right -le $tab.ClientSize.Width)
+        primary_controls_visible=($action.Bottom -le $tab.ClientSize.Height -and $details.Right -le $tab.ClientSize.Width)
+        minimum_layout_size="$($form.Width)x$($form.Height)"
+        resolved_source_path=if($state.artifact){$state.artifact.provenance.source_path}else{$null}
         legacy_step_buttons=@($tab.Controls|Where-Object {$_.Text -match '自动审计|生成 Seal|批准安装到主 Codex'}).Count
     }|ConvertTo-Json
     $form.Dispose()

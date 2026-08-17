@@ -76,6 +76,39 @@ try {
     Assert-Throws {Resolve-CsgChildPath -Root $testRoot -RelativePath '..\escape.txt'|Out-Null} 'Relative traversal rejection' 'outside the allowed root'
     Assert-Throws {Assert-CsgSafeId -Id '..\outside' -Kind 'Artifact'|Out-Null} 'Identifier traversal rejection' 'unsafe path characters'
 
+    $sourceFixture=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'fixtures\plain-skill')).Path
+    $quotedSource=Resolve-CsgSourceInput -Source ('  "'+$sourceFixture+'"  ')
+    Assert-Csg ($quotedSource.kind -eq 'local' -and $quotedSource.value -eq $sourceFixture) 'Quoted local-source input' $quotedSource.value
+    $smartQuotedSource=Resolve-CsgSourceInput -Source (([char]0x201c)+$sourceFixture+([char]0x201d))
+    Assert-Csg ($smartQuotedSource.value -eq $sourceFixture) 'Smart-quoted local-source input' $smartQuotedSource.value
+    $angleQuotedSource=Resolve-CsgSourceInput -Source ('<'+$sourceFixture+'>')
+    Assert-Csg ($angleQuotedSource.value -eq $sourceFixture) 'Angle-wrapped local-source input' $angleQuotedSource.value
+    $oldSourceTestRoot=$env:CSG_SOURCE_TEST_ROOT
+    try{
+        $env:CSG_SOURCE_TEST_ROOT=$sourceFixture
+        $environmentSource=Resolve-CsgSourceInput -Source '%CSG_SOURCE_TEST_ROOT%'
+        Assert-Csg ($environmentSource.value -eq $sourceFixture) 'Environment-variable source input' $environmentSource.value
+    }finally{
+        if($null -eq $oldSourceTestRoot){Remove-Item Env:CSG_SOURCE_TEST_ROOT -ErrorAction SilentlyContinue}else{$env:CSG_SOURCE_TEST_ROOT=$oldSourceTestRoot}
+    }
+    $partialSource=Resolve-CsgSourceInput -Source (Join-Path $repo 'tests\fixt\plain-ski')
+    Assert-Csg ($partialSource.value -eq $sourceFixture) 'Unique partial-path resolution' $partialSource.value
+    $skillFile=Join-Path $sourceFixture 'demo-skill\SKILL.md'
+    $fileSource=Resolve-CsgSourceInput -Source $skillFile
+    Assert-Csg ($fileSource.value -eq (Split-Path -Parent $skillFile) -and $fileSource.selected_file -eq $skillFile) 'File-to-extension-directory resolution' $fileSource.value
+    $fileUriSource=Resolve-CsgSourceInput -Source ([uri]::new($skillFile).AbsoluteUri)
+    Assert-Csg ($fileUriSource.selected_file -eq $skillFile) 'File URI source resolution' $fileUriSource.selected_file
+    $shortGitHub=Resolve-CsgSourceInput -Source 'github.com/octocat/Hello-World?tab=readme-ov-file'
+    Assert-Csg ($shortGitHub.kind -eq 'github' -and $shortGitHub.value -eq 'https://github.com/octocat/Hello-World') 'GitHub shorthand normalization' $shortGitHub.value
+    $wwwGitHub=Resolve-CsgSourceInput -Source 'https://www.github.com/octocat/Hello-World/tree/main?plain=1#readme'
+    Assert-Csg ($wwwGitHub.value -eq 'https://github.com/octocat/Hello-World/tree/main') 'GitHub browser-link normalization' $wwwGitHub.value
+    $markdownGitHub=Resolve-CsgSourceInput -Source '[repo](https://github.com/octocat/Hello-World/tree/main)'
+    Assert-Csg ($markdownGitHub.value -eq 'https://github.com/octocat/Hello-World/tree/main') 'Markdown GitHub-link normalization' $markdownGitHub.value
+    $ambiguousRoot=Join-Path $testRoot 'ambiguous-source'
+    New-Item -ItemType Directory -Force -Path (Join-Path $ambiguousRoot 'addon-one'),(Join-Path $ambiguousRoot 'addon-two')|Out-Null
+    Assert-Throws {Resolve-CsgSourceInput -Source (Join-Path $ambiguousRoot 'addon-')|Out-Null} 'Ambiguous partial-path rejection' '多个匹配'
+    Assert-Throws {Resolve-CsgSourceInput -Source (Join-Path $testRoot 'missing-source')|Out-Null} 'Missing source guidance' '浏览目录'
+
     $treeOne=Join-Path $testRoot 'tree-order-one'
     $treeTwo=Join-Path $testRoot 'tree-order-two'
     New-Item -ItemType Directory -Force -Path $treeOne,$treeTwo|Out-Null

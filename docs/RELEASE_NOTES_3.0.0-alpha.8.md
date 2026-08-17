@@ -12,7 +12,8 @@ before they are allowed into a primary Codex home.
 - static capability findings, risk bands, profile detection, and permission cards;
 - Windows Sandbox staging with deny-by-default mappings and networking;
 - sealed-payload promotion, exact approval binding, conflict protection, and rollback;
-- deterministic release manifests and SHA256 verification.
+- deterministic release manifests and SHA256 verification;
+- tolerant local-source input with directory/file browsing, drag-and-drop, direct file selection, and ambiguity-safe path resolution.
 
 ## Supported path in this alpha
 

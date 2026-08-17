@@ -97,7 +97,9 @@ publication.
    complete directory.
 2. Double-click `CSG.cmd` (or run it with `--smoke` to check the launcher).
 3. Paste the third-party GitHub repository, `tree`, `blob`, or `raw` URL into the
-   GUI and choose **检查这个**.
+   GUI, or click **浏览目录** / **选择文件** / drag a local source into the source box,
+   then choose **检查这个**. Quotes, relative paths, and unique path prefixes are
+   normalized; ambiguous matches are rejected instead of guessed.
 4. Read the risk band and permission card. Continue to Sandbox only when the
    displayed profile and requested permissions match your intent.
 5. Do not approve installation when the result is `RED`, the profile is unknown,

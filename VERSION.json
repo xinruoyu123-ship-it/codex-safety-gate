@@ -47,7 +47,8 @@
     "WinForms GUI for URL -> audit -> sandbox -> seal -> approve",
     "automatic addon/profile and installer-recipe detection",
     "automatic Markdown safety notebook/ledger",
-    "engine commands retained only as advanced/debug interface"
+    "engine commands retained only as advanced/debug interface",
+    "Ambiguity-safe tolerant source-path input with GUI directory/file browse and drag-and-drop"
   ],
   "ux": "GUI-first; PowerShell engine hidden behind a Windows launcher"
 }
